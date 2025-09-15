@@ -1,4 +1,4 @@
-# Import necessary libraries 
+# Imports
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -14,12 +14,11 @@ from sklearn.decomposition import PCA
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 from pathlib import Path
-# Load the dataset
-# Try to locate the CSV by pattern anywhere under the project
+# Data
 project_root = Path(__file__).resolve().parents[1]
 csv_candidates = list(project_root.rglob('*CTU-IoT-Malware-Capture-1.csv'))
 if not csv_candidates:
-    # Fallback to current working directory
+    # Fallback: CWD
     csv_candidates = list(Path.cwd().rglob('*CTU-IoT-Malware-Capture-1.csv'))
 if not csv_candidates:
     raise FileNotFoundError(
@@ -30,16 +29,15 @@ data_csv_path = csv_candidates[0]
 print(f"Loading dataset from: {data_csv_path}")
 data = pd.read_csv(data_csv_path)
 
-# Display the first few rows of the dataset
+# Preview
 print(data.head())
 
-# Check for missing values
+# Missing values
 print("Missing values per column:\n", data.isna().sum())
-# Inspect the DataFrame columns to find the target variable
+# Columns
 print("Columns in the dataset:", data.columns)
 
-# Set the features (X) and target variable (y)
-# Heuristic: try common target names; fallback to last column
+# Target
 possible_targets = ['label', 'Label', 'class', 'Class', 'target', 'Target', 'malicious', 'Malicious', 'y', 'Category']
 target_col = None
 for col in possible_targets:
@@ -52,24 +50,24 @@ if target_col is None:
 X = data.drop(columns=[target_col])
 y = data[target_col]
 
-# Split the dataset into training and testing sets
+# Split
 stratify_arg = y if y.nunique() > 1 else None
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=stratify_arg
 )
 
-# Output the shapes of the features and target
+# Shapes
 print(f"Features shape: {X.shape}, Target shape: {y.shape}")
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
 
-# Identify categorical and numerical columns
+# Dtypes
 categorical_columns = X_train.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
 numerical_columns = X_train.select_dtypes(include=[np.number]).columns.tolist()
 
-# Create a column transformer to apply scaling and one-hot encoding
+# Preprocess
 preprocessor = ColumnTransformer(
     transformers=[
         ("num", StandardScaler(), numerical_columns),
@@ -78,7 +76,7 @@ preprocessor = ColumnTransformer(
     remainder="drop",
 )
 
-# Create a pipeline for preprocessing and PCA
+# PCA
 preprocess_and_reduce = Pipeline(
     steps=[
         ("preprocess", preprocessor),
@@ -86,23 +84,23 @@ preprocess_and_reduce = Pipeline(
     ]
 )
 
-# Fit and transform the training data, and transform the test data
+# Transform
 X_train_transformed = preprocess_and_reduce.fit_transform(X_train)
 X_test_transformed = preprocess_and_reduce.transform(X_test)
 
-# Output the shapes of the transformed features
+# Transformed shapes
 print(f"Transformed training features shape: {X_train_transformed.shape}")
 print(f"Transformed testing features shape: {X_test_transformed.shape}")
-# Initialize the Random Forest model
+# RF
 rf_model = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
 
-# Train the model
+# RF train
 rf_model.fit(X_train_transformed, y_train)
 
-# Make predictions
+# RF predict
 y_pred_rf = rf_model.predict(X_test_transformed)
 
-# Evaluate the model
+# RF report
 print("Random Forest Classification Report:")
 print(classification_report(y_test, y_pred_rf))
 print("Confusion Matrix:")
@@ -111,14 +109,13 @@ from sklearn.preprocessing import LabelEncoder
 from tensorflow import keras
 from tensorflow.keras import layers
 
-# Assuming the target variable is in y_train and needs encoding
-# Step 1: Convert categorical labels to numerical values
+# Encode labels
 label_encoder = LabelEncoder()
 y_train_encoded = label_encoder.fit_transform(y_train)
 y_test_encoded = label_encoder.transform(y_test)
 num_classes = len(label_encoder.classes_)
 
-# Step 2: Define the deep learning model
+# NN
 input_dim = X_train_transformed.shape[1]
 model = Sequential()
 model.add(Dense(128, activation='relu', input_dim=input_dim))
@@ -128,7 +125,7 @@ if num_classes == 2:
 else:
     model.add(Dense(num_classes, activation='softmax'))
 
-# Compile the model
+# Compile
 if num_classes == 2:
     loss_fn = 'binary_crossentropy'
     metrics = ['accuracy']
@@ -137,7 +134,7 @@ else:
     metrics = ['accuracy']
 model.compile(optimizer='adam', loss=loss_fn, metrics=metrics)
 
-# Step 3: Train the model
+# Train
 history = model.fit(
     X_train_transformed,
     y_train_encoded,
@@ -146,7 +143,7 @@ history = model.fit(
     validation_split=0.2,
     verbose=0,
 )
-# Make predictions
+# Predict
 if num_classes == 2:
     y_pred_probs = model.predict(X_test_transformed, verbose=0).ravel()
     y_pred_binary = (y_pred_probs >= 0.5).astype(int)
@@ -156,12 +153,11 @@ else:
     y_pred_classes = np.argmax(y_pred_proba, axis=1)
     y_pred_labels = label_encoder.inverse_transform(y_pred_classes)
 
-# If you want to decode predictions back to original labels
-# Already decoded above into y_pred_labels
+# Decoded above
 
-# Check the predictions
+# Predictions
 print(y_pred_labels)
-# Visualize the training history
+# Plots
 plt.plot(history.history['accuracy'], label='Train Accuracy')
 plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
 plt.title('Model Accuracy')
@@ -179,25 +175,22 @@ plt.legend()
 plt.show()
 from sklearn.metrics import classification_report
 
-# Encode y_test before evaluation
-# Already encoded as y_test_encoded
+# Encoded above
 
-# Convert predictions from Random Forest to numerical labels
-# If y is categorical strings, encode to compare numerically
+# RF numeric labels
 try:
     y_pred_rf_encoded = label_encoder.transform(y_pred_rf)
 except Exception:
-    # In case RF already outputs encoded labels
+    # If already encoded
     y_pred_rf_encoded = y_pred_rf
 
-# Convert Deep Learning model predictions to binary (0 or 1)
+# DL numeric labels
 if num_classes == 2:
     y_pred_dl_binary = (model.predict(X_test_transformed, verbose=0).ravel() >= 0.5).astype(int)
 else:
     y_pred_dl_binary = np.argmax(model.predict(X_test_transformed, verbose=0), axis=1)
 
-# Map binary predictions back to original labels
-# Assuming the mapping is 0 -> 'Benign' and 1 -> 'Malicious'
+# Back to labels
 y_pred_dl_labels = label_encoder.inverse_transform(y_pred_dl_binary)
 
 print(classification_report(y_test, y_pred_dl_labels))
